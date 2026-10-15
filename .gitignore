@@ -1,0 +1,26 @@
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+
+# React
+node_modules/
+build/
+dist/
+
+# Spring Boot
+target/
+*.class
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Archive files
+*.zip
+
+# Operating system files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,131 @@
+package com.example.demo.Controller.UserManagement;
+
+import com.example.demo.DTO.CountryUserCount;
+import com.example.demo.Entity.UserManagement.User;
+import com.example.demo.Service.UserManagement.UserReportService;
+import com.example.demo.Service.UserManagement.UserServices;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+import java.io.ByteArrayInputStream;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+@RestController
+@CrossOrigin(origins = "*")
+@RequestMapping("api/v1/user")
+public class UserController {
+
+    @Autowired
+    private UserServices userServices;
+
+    private final UserReportService reportService;
+
+    public UserController(UserReportService reportService) {
+        this.reportService = reportService;
+    }
+
+    @PostMapping(value = "/save")
+    public ResponseEntity<?> createUser(@RequestBody User user) {
+        try {
+            User savedUser = userServices.createUser(user);
+
+            Map<String, Object> responseBody = new HashMap<>();
+            responseBody.put("id", savedUser.getId());
+            responseBody.put("message", "User created successfully");
+
+            return ResponseEntity.ok(responseBody);
+
+        } catch (RuntimeException e) {
+
+            Map<String, String> errorBody = new HashMap<>();
+            errorBody.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(errorBody);
+        }
+    }
+
+
+    @GetMapping(value = "/getAll")
+    public Iterable<User> getAllUsers(){
+        return userServices.getUsers();
+    }
+
+    @PutMapping(value = "/edit/{id}")
+    public User updateUser(@RequestBody User user, @PathVariable (name = "id")String id){
+        return userServices.updateUser(id, user);
+    }
+
+    @DeleteMapping("/delete/{id}")
+    public void deleteUser(@PathVariable (name = "id")String id){
+        userServices.deleteUser(id);
+    }
+
+    @RequestMapping("/{id}")
+    public User getUser(@PathVariable (name = "id")String id){
+        return userServices.getUserById(id);
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<User> getCurrentUser(Authentication authentication){
+        String email = authentication.getName();
+        User user = userServices.getUserByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found with email: " + email));
+        return ResponseEntity.ok(user);
+    }
+
+    @PutMapping("/change-password/{id}")
+    public ResponseEntity<?> changePassword(@PathVariable String id, @RequestBody Map<String, String> body) {
+        try {
+            userServices.changePassword(id, body.get("oldPass"), body.get("newPass"));
+            return ResponseEntity.ok("Password updated");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/remove-inactive")
+    public String removeInactiveUsers() {
+        long removedCount = userServices.removeInactiveUsers();
+        return removedCount + " inactive users removed successfully!";
+    }
+
+
+    @GetMapping("/geographical-distribution")
+    public List<CountryUserCount> getGeoDistribution(
+            @RequestParam(required = false) Integer month,
+            @RequestParam(required = false) Integer year) {
+        return reportService.getGeographicalDistribution(month,year);
+    }
+
+    @GetMapping("/generate-geographical-report")
+    public ResponseEntity<byte[]> generateReport(
+            @RequestParam(required = false) Integer month,
+            @RequestParam(required = false) Integer year) {
+
+        List<CountryUserCount> data = reportService.getGeographicalDistribution(month, year);
+
+        ByteArrayInputStream pdf = reportService.generateGeographicalReport(
+                data,
+                "CamiLeaf Tea Factory Pvt Ltd",
+                "123, Main Street, Colombo, Sri Lanka",
+                "+94 11 234 5678",
+                "info@camileaf.com"
+        );
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("Content-Disposition", "inline; filename=geographical_report.pdf");
+
+        return ResponseEntity
+                .ok()
+                .headers(headers)
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdf.readAllBytes());
+    }
+
+
+}
